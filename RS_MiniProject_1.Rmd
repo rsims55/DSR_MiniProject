@@ -2,7 +2,7 @@
 title: "DSR_Mini Project 1"
 author: "Randi Sims"
 date: "`r Sys.Date()`"
-output: html_document
+output: github_document
 ---
 
 # Introduction
@@ -68,44 +68,35 @@ reportcard_data <- left_join(chronicabs,
                               school_climate, 
                               by=c("SCHOOLID", "SCHOOLTYPECD"))
 
-# Checking data columns - commented out for markdown
+# Checking data columns -
 glimpse(reportcard_data)
 ```
 
 ```{r filterdata}
-reportcard_data <- reportcard_data %>% 
-  
-  # Filtering data to only high schools
-  filter(SCHOOLTYPECD == "H") %>%
-  
-  # Filtering out non-traditional high schools
-  filter(
-    str_detect(SchoolNm, 
-               "Academy|Charter|College|Magnet|School Of|School For",
-               negate = TRUE),
-    ) %>%
-  
-  # Filtering out non-traditional districts
-  filter(
-    str_detect(DistrictNm,
-               "Charter|Unified|Governor's|Djj",
-               negate = TRUE)
-    ) %>%
-  
-  # Reducing data frame to only necessary variables (and renaming for my own OCD)
-  select(district_name=DistrictNm, 
-         school_name=SchoolNm, 
-         schoolID = SCHOOLID, 
-         chronicabs = PctChronic_ALL,
-         childsafe = PAR_ChildFeelsSafe,
-         satisf.learningenv = STU_SatWithLearningEnvironPct,
-         satisf.socphysenv = STU_SatWithSocialPhysEnvironPct)%>%
-  
-  # Making sure all numeric columns are identified as numeric
-  mutate_at(c("chronicabs", 
-               "childsafe", 
-               "satisf.learningenv",
-               "satisf.socphysenv"), as.numeric)
+reportcard_data <- reportcard_data %>%
+                  # Filtering data to only high schools
+                  filter(SCHOOLTYPECD == "H") %>%
+                  # Filtering out non-traditional high schools
+                  filter(str_detect(SchoolNm, 
+                               "Academy|Charter|College|Magnet|School Of|School For",
+                               negate = TRUE)) %>%
+                  # Filtering out non-traditional districts
+                  filter(str_detect(DistrictNm,
+                                   "Charter|Unified|Governor's|Djj",
+                                   negate = TRUE)) %>%
+                  # Reducing data frame to only necessary variables (and renaming for my own OCD)
+                  select(district_name=DistrictNm, 
+                         school_name=SchoolNm, 
+                         schoolID = SCHOOLID, 
+                         chronicabs = PctChronic_ALL,
+                         childsafe = PAR_ChildFeelsSafe,
+                         satisf.learningenv = STU_SatWithLearningEnvironPct,
+                         satisf.socphysenv = STU_SatWithSocialPhysEnvironPct) %>%
+                  # Making sure all numeric columns are identified as numeric
+                  mutate_at(c("chronicabs", 
+                               "childsafe", 
+                               "satisf.learningenv",
+                               "satisf.socphysenv"), as.numeric)
 ```
 
 ------------------------------------------------------------------------
@@ -155,10 +146,10 @@ ca_box <- ggplot(reportcard_data, aes(x = chronicabs)) +
               plot.title = element_text(hjust = 0.5, face = "bold"))
 
 # Arranging response variable graphs
-grid.arrange(ca_box, ca_hist, ncol = 2)
+grid.arrange(ca_hist, ca_box, ncol = 2)
 ```
 
-```{r univariate data plots - histograms (response) (fig 2), fig.cap="Figure 2. Histograms of Explantory Variables", warning=FALSE, message=FALSE}
+```{r univariate data plots - histograms (response) (fig 2), fig.cap="Figure 2. Histograms and Boxplots of Explantory Variables", warning=FALSE, message=FALSE}
 # Child safety histogram
 childsafe_hist <- ggplot(reportcard_data, aes(x = childsafe)) +
           # Binwidth of 15 for best visuals
@@ -397,7 +388,7 @@ This model was statistically significant (R^2^ = 0.02, F(1, 181), p = 0.029). Ba
 
 It is important to note the low R^2^ in this model, which means it does not account for a whole lot of variation in absentee rates. This model suggests that perceptions of child safety only explains 2% of variation in chronic absentee rates (which is not a whole lot - but still worth something).
 
-There were also no issues with colinearity in this model.
+There were also no issues with colinearity in this model due to this being a single linear regression.
 
 ***
 # Conclusion
