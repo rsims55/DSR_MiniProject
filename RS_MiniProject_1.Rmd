@@ -1,0 +1,412 @@
+---
+title: "DSR_Mini Project 1"
+author: "Randi Sims"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Introduction
+
+For my analysis, I selected the ChronicAbsenteeismRate (Chronic Absenteeism Rate) variable as my numeric response variable.
+
+My three potential explantory variables include:
+
+-   PAR_ChildFeelsSafe (Opinion Survey - Percent Parents Agree/Strongly agree: "My child feels safe at school." )
+
+-   STU_SatWithLearningEnvironPct (Opinion Surveys - Percent satisfied with learning environment - Student )
+
+-   STU_SatWithSocialPhysEnvironPct (Opinion Surveys - Percent satisfied with social and physical environment - Student )
+
+My research question for this project is: **To what extent is chronic absenteeism in South Carolina high school students between the 2021-2022 school year influenced by perceptions of safety in schools, satisfaction with the learning environment in schools, and satistifaction with the social/physical environment in schools?**
+
+Safety and satisfaction with the school are two critical components to student success and happiness, particularly during these years at the height of safety issues in schools and post-pandemic restrictions. I am very interested to see how perceptions of safety and satisfaction at these schools may influence student absences. For instance, if students and/or parents who have students in school do not feel comfortable with the learning environment, this may lead to higher rates of chronic absences.
+
+------------------------------------------------------------------------
+
+# Load Packages
+
+```{r setup}
+library(readxl)
+library(tidyverse)
+library(dataedu)
+library(GGally)
+library(sjPlot)
+library(gridExtra)
+```
+
+------------------------------------------------------------------------
+
+# Import Data
+
+```{r import data}
+# Importing chronic absenteeism sheet
+chronicabs <- read_excel("ReportCardData_AdditionalInfo2022.xlsx", 
+                              sheet = "5b.SchoolClimate_ChronicAbs",
+                          na = c("*", "N/AV"))
+
+# Importing school climate sheet
+school_climate <- read_excel("ReportCardData_AdditionalInfo2022.xlsx", 
+                              sheet = "5.SchoolClimatePage",
+                          na = c("*", "N/AV"))
+
+# Importing school safety sheet
+school_safe <- read_excel("ReportCardData_AdditionalInfo2022.xlsx", 
+                              sheet = "7.SchoolSafetyPage",
+                          na = c("*", "N/AV"))
+```
+
+------------------------------------------------------------------------
+
+# Process Data
+
+```{r join data, results=FALSE}
+# Joining all individual sheets by school ID and school type
+reportcard_data <- left_join(chronicabs, 
+                             school_safe, 
+                             by=c("SCHOOLID", "SCHOOLTYPECD")) %>%
+                    left_join(., 
+                              school_climate, 
+                              by=c("SCHOOLID", "SCHOOLTYPECD"))
+
+# Checking data columns - commented out for markdown
+glimpse(reportcard_data)
+```
+
+```{r filterdata}
+reportcard_data <- reportcard_data %>% 
+  
+  # Filtering data to only high schools
+  filter(SCHOOLTYPECD == "H") %>%
+  
+  # Filtering out non-traditional high schools
+  filter(
+    str_detect(SchoolNm, 
+               "Academy|Charter|College|Magnet|School Of|School For",
+               negate = TRUE),
+    ) %>%
+  
+  # Filtering out non-traditional districts
+  filter(
+    str_detect(DistrictNm,
+               "Charter|Unified|Governor's|Djj",
+               negate = TRUE)
+    ) %>%
+  
+  # Reducing data frame to only necessary variables (and renaming for my own OCD)
+  select(district_name=DistrictNm, 
+         school_name=SchoolNm, 
+         schoolID = SCHOOLID, 
+         chronicabs = PctChronic_ALL,
+         childsafe = PAR_ChildFeelsSafe,
+         satisf.learningenv = STU_SatWithLearningEnvironPct,
+         satisf.socphysenv = STU_SatWithSocialPhysEnvironPct)%>%
+  
+  # Making sure all numeric columns are identified as numeric
+  mutate_at(c("chronicabs", 
+               "childsafe", 
+               "satisf.learningenv",
+               "satisf.socphysenv"), as.numeric)
+```
+
+------------------------------------------------------------------------
+
+# Analysis
+
+## Univariate Data Analysis
+
+We need to take a look at the variables we've chosen more closely. To understand these variables a bit better, here is a table:
+
+**Table 1. Descriptions of variables of interest**
+
+| **Variable**         | **Description**                                                                                         | **Type**            |
+|--------------|--------------------------------------------|--------------|
+| `chronicabs`         | Chronic absenteeism rate for all students                                                               | numeric, continuous |
+| `childsafe`          | Percent of parents who *agree/strongly agree* on opinion survey stating "My child feels safe at school" | numeric, continuous |
+| `satisf.learningenv` | Percent of students satisfied with their learning environment (based on opinion survey)                 | numeric, continuous |
+| `satisf.socphysenv`  | Percent of students satisfied with their social and physical environment (based on opinion survey)      | numeric, continuous |
+
+
+Now, we will look at these variables graphically.
+
+
+```{r univariate data plots - response (fig 1), fig.cap="Figure 1. Histogram and Boxplot of Chronic Absences (Response Variable)"}
+# Chronic absence - histogram
+ca_hist <- ggplot(reportcard_data, aes(x = chronicabs)) +
+          # Binwidth of 5 for best visuals
+          geom_histogram(binwidth = 5, fill = "darkorange2") +
+          # Labels
+          labs(x = "Chronic Absences (%)",
+               y = "Frequency",
+               title = "Chronic Absences") +
+          theme_dataedu() +  # Uses dataedu theme
+          theme(plot.title.position = 'plot', # Bolds title and centers
+              plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Chronic absence - boxplot
+ca_box <- ggplot(reportcard_data, aes(x = chronicabs)) +
+          # calling boxplot
+          geom_boxplot(fill = "darkorange2") +
+          # Labels
+          labs(x = "Chronic Absences (%)",
+               title = "Chronic Absences") +
+          theme_dataedu() +  # Uses dataedu theme 
+          theme(axis.ticks.y = element_blank(), axis.text.y = element_blank()) +
+          theme(plot.title.position = 'plot', # Bolds title and centers
+              plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Arranging response variable graphs
+grid.arrange(ca_box, ca_hist, ncol = 2)
+```
+
+```{r univariate data plots - histograms (response) (fig 2), fig.cap="Figure 2. Histograms of Explantory Variables", warning=FALSE, message=FALSE}
+# Child safety histogram
+childsafe_hist <- ggplot(reportcard_data, aes(x = childsafe)) +
+          # Binwidth of 15 for best visuals
+          geom_histogram(binwidth = 15, fill = "purple") +
+          # Labels
+          labs(x = "Parents Satisfied with Child Safety (%)",
+               y = "Frequency",
+               title = "Child Safety Satisfaction") +
+          theme_dataedu() +  # Uses dataedu theme
+          theme(plot.title.position = 'plot', # Bolds title and centers
+              plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Child safety boxplot
+childsafe_box <- ggplot(reportcard_data, aes(x = childsafe)) +
+          # calling boxplot
+          geom_boxplot(fill = "purple") +
+          # Labels
+          labs(x = "Parents Satisfied with Child Safety (%)",
+               title = "Child Safety Satisfaction") +
+          theme_dataedu() +  # Uses dataedu theme 
+          theme(axis.ticks.y = element_blank(), axis.text.y = element_blank()) +
+          theme(plot.title.position = 'plot', # Bolds title and centers
+              plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Learning environment satisfaction histogram
+learning_env_hist <- ggplot(reportcard_data, aes(x = satisf.learningenv)) +
+          # Binwidth of 15 for best visuals
+          geom_histogram(binwidth = 5, fill = "purple2") +
+          # Labels
+          labs(x = "Students Satisfied with Learning Environ(%)",
+               y = "Frequency",
+               title = "Learning Environment Satisfaction") +
+          theme_dataedu() +  # Uses dataedu theme
+          theme(plot.title.position = 'plot', # Bolds title and centers
+              plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Learning environment satisfaction boxplot
+learning_env_box <- ggplot(reportcard_data, aes(x = satisf.learningenv)) +
+          # calling boxplot
+          geom_boxplot(fill = "purple2") +
+          # Labels
+          labs(x = "Students Satisfied with Learning Environ (%)",
+               title = "Learning Environment Satisfaction") +
+          theme_dataedu() +  # Uses dataedu theme 
+          theme(axis.ticks.y = element_blank(), axis.text.y = element_blank()) +
+          theme(plot.title.position = 'plot', # Bolds title and centers
+              plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Social/physical environment satisfaction histogram
+socphys_env_hist <- ggplot(reportcard_data, aes(x = satisf.socphysenv)) +
+          # Binwidth of 15 for best visuals
+          geom_histogram(binwidth = 5, fill = "purple4") +
+          # Labels
+          labs(x = "Students Satisfied with Soc/Phys Environ (%)",
+               y = "Frequency",
+               title = "Social/Physical Environment Satisfaction") +
+          theme_dataedu() +  # Uses dataedu theme
+          theme(plot.title.position = 'plot', # Bolds title and centers
+              plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Social/physical environment satisfaction boxplot
+socphys_env_box <- ggplot(reportcard_data, aes(x = satisf.socphysenv)) +
+          # calling boxplot
+          geom_boxplot(fill = "purple4") +
+          # Labels
+          labs(x = "Students Satisfied with Soc/Phys Environ (%)",
+               title = "Social/Physical Environment Satisfaction") +
+          theme_dataedu() +  # Uses dataedu theme 
+          theme(axis.ticks.y = element_blank(), axis.text.y = element_blank()) +
+          theme(plot.title.position = 'plot', # Bolds title and centers
+              plot.title = element_text(hjust = 0.5, face = "bold"))
+
+
+grid.arrange(childsafe_hist, 
+             childsafe_box, 
+             learning_env_hist,
+             learning_env_box,
+             socphys_env_hist,
+             socphys_env_box,
+             ncol = 2)
+```
+
+------------------------------------------------------------------------
+
+Let's take a look at these summary statistics as well.
+
+```{r univariate summary stats}
+summary_table <- reportcard_data %>% 
+                # Drop numeric value that should be calculated
+                select(-schoolID) %>%
+                # Drop any NA's
+                drop_na() %>%
+                # 
+                # Summarize across all numeric columns by listed functions
+                summarise(across(where(is.numeric), list(Mean = mean,
+                                                         StandardDev = sd,
+                                                         Min = min,
+                                                         Max = max,
+                                                         Median = median,
+                                                         IQR = IQR))) %>%
+                # Gather the wide data and pivot into long as key (stat):value (val) pairs
+                gather(stat, val) %>%
+                # Take the column names and separate them by the underscore
+                separate(stat, into = c("Variable", "stat"), sep ="_") %>%
+                # Spread the statistics (now separated from the underscores) wide
+                spread(stat, val)
+
+# View the table
+print(summary_table)
+```
+
+\*\*\*Note that we have no categorical variables.
+
+**Distributions**
+
+All distributions appear to be unimodel (one peak). The dependent variable (chronic absence rate) and satisfaction with the learning environment (explanatory variable) seem normally distributed. The explanatory variables child safety satisfaction variable and social-physical environment satisfaction both appear left-skewed, however social-physical environment satisfaction may be driven by one extreme outlier. All explanatory variables appear to have quite a few outliers as well.
+
+***
+
+## Bivariate Data Analysis
+
+```{r correlation matrices (fig 3), fig.cap = "Figure 3. Correlogram for all variables", warning=FALSE, message=FALSE}
+reportcard_data %>%
+  # select only dependent and independent variables
+  select(chronicabs, childsafe, satisf.learningenv, satisf.socphysenv) %>%
+  # create matrices
+  ggpairs(title = "Reportcard Data Correlogram",
+          # Relabel columns
+          columnLabels = c("Absence Rate",
+                           "Child Safety",
+                           "Learning Env",
+                           "Soc/Phys Env")) +
+  theme_bw() +
+  theme(plot.title.position = 'plot', # Bolds title and centers
+        plot.title = element_text(hjust = 0.5, face = "bold"))
+
+```
+
+Figure 3 gives some insight into any potential relationships within the data. It appears that the response variable (chronic absence rate) is not strongly correlated with any of the explantory variables. The strongest correlation (-0.175) with satisfaction for the social/physical environment is still quite weak. 
+
+Of note is the extremely strong positve correlation (0.828) between the learning environment and social/physical environment satisfaction variables. These make a lot of sense as individuals who are satisfied with their learning environment likely take into account their satisfaction with the social/physical environment around them (and vice-versa).
+
+There are also somewhat moderate positive correlation between learning environment satisfaction and child safety (0.454). As well as social/physical environment satisfaction and child safety (0.470). These are also sensibile as students who are satisfied in their learning and social/physical environment likely also feel safe. However, it is interesting that the the child safety variable comes from the perspective of the parent, yet still moderately correlates with student satisfaction for these two environmental variables.
+
+***Note no categorical variables
+
+***
+
+## Linear Regression Analysis
+
+```{r linear model}
+# Create model
+lm_reportcarddata <-
+  lm(chronicabs ~ childsafe + satisf.learningenv + satisf.socphysenv, reportcard_data)
+
+# View model
+tab_model(lm_reportcarddata, title = "Table 2. Multiple linear regression predicting Chronic Absence Rate")
+```
+
+This model is not great. There are no significant influences on chronic absence rate and the adjusted R^2^ is very low. Now we work backwards, eliminating the variables with the highest p-values from the model (first is satisfaction with the social/physical environment).
+
+```{r linear model 2}
+# Create model
+lm_reportcarddata2 <-
+  lm(chronicabs ~ childsafe + satisf.learningenv, reportcard_data)
+
+# View model
+tab_model(lm_reportcarddata2, title = "Table 3. Second multiple linear model predicting Chronic Absence Rate (social physical environment satisfaction removed)")
+```
+
+This model did not get much better. Let's give it one last try after eliminating satisfaction with the learning environment, the next highest p-value.
+
+```{r linear model 3}
+# Create model
+lm_reportcarddata3 <-
+  lm(chronicabs ~ childsafe, reportcard_data)
+
+# View model
+tab_model(lm_reportcarddata3, title = "Table 4. Final linear model predicting Chronic Absence Rate (satisfaction with the learning environment removed)")
+
+summary(lm_reportcarddata3)
+```
+
+Here is a model that might give us some information, with the child safety variable showing a significance below the the 0.05 threshold (as well as the intercept of course).
+
+***
+
+Let's take a look at the model assumptions through our residual and fitted plots.
+
+```{r resid vs fitted plots (fig 4), fig.cap = "Figure 4. Plots for all assumptions (residual vs fitted)"}
+plot(lm_reportcarddata3)
+```
+
+**Lets break these down by plot.**
+
+The **Residuals vs Fitted Plot** can help us with two assumptions.
+
+This is actually a very nice residuals vs fitted plot. There is no distinct pattern and the individual points are relatively well-distributed around the 0 line. This indicates both linearity and homoscedasticity. 
+
+***
+
+The **Normal Q-Q** also looks very nice. There does not appear any indication of a non-normal distribution. Let's double-check this with a Shapiro-Wilk test as well.
+
+```{r shapiro-test}
+res <- residuals(lm_reportcarddata3)
+
+res %>%
+  shapiro.test()
+```
+
+Based on the results of the Shapiro-Wilk test (p > 0.05), there is no indication that the data is non-normally distributed.
+
+There do appear to be some outliers, however the lack of these points past the Cook's distance threshold in the residuals vs leverage plot indicates these should not be driving any of the coefficients. 
+
+***
+
+No let's go through our assumptions:
+
+- <input type="checkbox" checked> Linear relationship between X and Y </input>
+
+- <input type="checkbox" checked> Homoscedasticity </input>
+
+- <input type="checkbox" checked> Residuals are normally distributed </input>
+
+- <input type="checkbox" checked> Independence </input>
+
+- <input type="checkbox" checked> No large outliers </input>
+
+These assumptions all check out, which mean there is some use for this model.
+
+***
+
+**Interpretation**
+
+This model was statistically significant (R^2^ = 0.02, F(1, 181), p = 0.029). Based on the intercept estimate, it appears that, on average, when parents did not perceive their child to be safe (predictor variable held to 0), the absentee rate was at 19.63%. Based on the predictor estimate, for a 1 point increase in child safety, chronic absentee rates decreased by 7%.
+
+It is important to note the low R^2^ in this model, which means it does not account for a whole lot of variation in absentee rates. This model suggests that perceptions of child safety only explains 2% of variation in chronic absentee rates (which is not a whole lot - but still worth something).
+
+There were also no issues with colinearity in this model.
+
+***
+# Conclusion
+
+Multiple linear regressions were used to determine if parent perceptions of child safety, student satisfaction with their learning environment, and/or student satisfaction with their social/physical environment predicted chronic absentee rates.
+After backwards elimination, the final model indicated only perceptions of child safety predicted absence rates.This model was statistically significant (R^2^ = 0.02, F(1, 181), p = 0.029). This relationship was negative, suggesting higher perceptions of child safety predicts lower chronic absentee rates.
+
+The negative relationship between child safety and chronic absentee rates are not surprising. It is sensible that children who feel safer in school will be more likely to attend school. However, this relationship is very small and absentee rates are likely being driven by many other variables which were not investigated in the study. While it is surprising that satisfaction with the social/physical environment and satisfaction with the learning environment were not predictors of chronic absentee rates, their correlations with child safety are sensible.
+
+To answer my research question for this project: **To what extent is chronic absenteeism in South Carolina high school students between the 2021-2022 school year influenced by perceptions of safety in schools, satisfaction with the learning environment in schools, and satistifaction with the social/physical environment in schools?**, chronic absenteeism is not influenced by satisfaction with the learning environment, satisfaction with the social/physical environment. However, chronic absenteeism is slightly negatively influenced by perceptions of child safety in school.
+
+
